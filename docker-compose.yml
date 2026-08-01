@@ -1,0 +1,13 @@
+services:
+  ground-station-sim:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ground_station_simulator
+    network_mode: "host"
+    environment:
+      - SIMULATOR_PORT=${SIMULATOR_PORT}  # Docker přečte z .env a pošle dál
+    volumes:
+      - ./sim_data:/app/sim_data
+      - ./sim_video:/app/sim_video
+    restart: unless-stopped
