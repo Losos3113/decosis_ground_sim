@@ -46,6 +46,22 @@ docker compose up
 
 Po spuštění je API dokumentace dostupná na adrese `http://<IP_SERVERU>:<PORT>/docs`.
 
+### Endpointy
+
+| Endpoint | Co vrací |
+|---|---|
+| `GET /api/uavs` | seznam právě simulovaných UAV |
+| `GET /api/{uav}/topics` | názvy topiců, které dané UAV má |
+| `GET /api/{uav}/state` | **poslední známou hodnotu všech topiců najednou** |
+| `GET /api/{uav}/topic/{topic}` | poslední stav jednoho topicu |
+| `GET /api/{uav}/current` | zpráva, která zrovna v tuto sekundu prošla |
+
+`/state` je endpoint, který odebírá **Converter** (projekt `Converter`,
+modul `ground_link.py`): telemetrie se tam skládá k jednomu snímku videa,
+takže ji potřebuje pohromadě a ne po jednotlivých dotazech na topic.
+Converter se na něj ptá jednou za sekundu - stejně rychle, jak simulátor
+posouvá CSV, takže častější dotazování nic nepřidá.
+
 ---
 
 ## 2. Zachytávání a zobrazení videa (na klientském PC)

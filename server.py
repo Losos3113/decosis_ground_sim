@@ -118,29 +118,34 @@ async def list_simulated_uavs():
 
 
 @app.get("/api/{uav_id}/topics", summary="Seznam všech dostupných topiců pro konkrétní UAV")
-async def get_all_topics(uav_id: str):
+async def list_topics(uav_id: str):
     """
-    Vrátí jednoduché pole s názvy všech topiců, které toto UAV 
+    Vrátí jednoduché pole s názvy všech topiců, které toto UAV
     obsahuje v CSV souboru (např. ['vehicle_status', 'battery_status']).
     """
     uav_data = get_uav_state_or_404(uav_id)
-    
+
     # Vezmeme klíče ze slovníku by_topic, což jsou přesně názvy jednotlivých topiců
     topic_list = list(uav_data["by_topic"].keys())
-    
+
     return {
         "uav_id": uav_id,
         "topics": topic_list,
         "total_topics": len(topic_list)
     }
-    return uav_data["current_row"]
 
 
-@app.get("/api/{uav_id}/topics", summary="Poslední známý stav všech topiců pro konkrétní UAV")
-async def get_all_topics(uav_id: str):
-    """Vrátí aktuální přehled všech topiců a jejich posledních hodnot pro dané UAV."""
-    uav_data = get_all_topics(uav_id)
-    return uav_data["by_topic"]
+@app.get("/api/{uav_id}/state", summary="Poslední známý stav všech topiců pro konkrétní UAV")
+async def get_full_state(uav_id: str):
+    """Vrátí poslední známou hodnotu KAŽDÉHO topicu najednou - jeden request
+    místo jednoho dotazu na topic. Tohle je endpoint, který odebírá Converter:
+    telemetrie se v něm sbírá k jednomu snímku, takže ji potřebuje
+    konzistentně a bez N samostatných requestů."""
+    uav_data = get_uav_state_or_404(uav_id)
+    return {
+        "uav_id": uav_id,
+        "by_topic": uav_data["by_topic"],
+    }
 
 
 @app.get("/api/{uav_id}/topic/{topic_name}", summary="Stav konkrétního topicu pro konkrétní UAV")
@@ -157,6 +162,9 @@ async def get_topic_state(uav_id: str, topic_name: str):
 async def get_current_state(uav_id: str):
     """Vrátí aktuální zprávu, která zrovna v tuto sekundu pro dané UAV prošla."""
     uav_data = get_uav_state_or_404(uav_id)
+    return uav_data["current_row"]
+
+
 if __name__ == "__main__":
     import uvicorn
     import os
