@@ -201,7 +201,7 @@ reboot).
 | `SNAPSHOT_API_URL` | *(required)* | `state_holder.py` - REST endpoint the snapshots are POSTed to |
 | `SNAPSHOT_API_TIMEOUT_MS` | `2000` | `state_holder.py` - one attempt, then the frame is dropped |
 | `SNAPSHOT_API_TOKEN` | *(empty = no auth header)* | `state_holder.py` - sent as `Authorization: Bearer ...` |
-| `TARGET_API_URL` | *(empty = second destination unused)* | `state_holder.py` - the customer's REST endpoint, see "Three independent consumers" |
+| `TARGET_API_URL` | *(empty = second destination unused)* | `state_holder.py` - the partner's REST endpoint, see "Three independent consumers" |
 | `TARGET_API_TIMEOUT_MS` | `2000` | `state_holder.py` - independent of the primary timeout |
 | `TARGET_API_TOKEN` | *(empty = no auth header)* | `state_holder.py` |
 | `SNAPSHOT_SAVE_DIR` | *(empty = nothing written)* | `state_holder.py` - where `.jpg` + `.json` go per snapshot |
@@ -437,15 +437,15 @@ others**:
 | Consumer | Config | On failure |
 |---|---|---|
 | `primary` API | `SNAPSHOT_API_URL` | logged once, frame dropped for that destination |
-| `customer` API | `TARGET_API_URL` | same, independently |
+| `partner` API | `TARGET_API_URL` | same, independently |
 | disk | `SNAPSHOT_SAVE_DIR` | logged once, frame not written; sending unaffected |
 
-The isolation is the point, not an optimisation. **The customer API is
-written by the customer, not by us** - it may be slow, hang until its
+The isolation is the point, not an optimisation. **The partner API is
+written by the partner, not by us** - it may be slow, hang until its
 timeout, or answer with something unexpected, and none of that may slow our
 own channel or stall decoding. So each destination gets its own timeout,
 its own in-flight lock and its own counters, and logs under its own name
-(`[SEND:customer]`, `[SEND:primary]`, `[STORE]`) - when something breaks at
+(`[SEND:target]`, `[SEND:primary]`, `[STORE]`) - when something breaks at
 3am, the log already says whose side it is.
 
 Each destination still receives **exactly one message per `--interval-s`**:
@@ -762,7 +762,7 @@ python3 print_server.py --port 9100
 ```
 
 Point `TARGET_API_URL` at it and every field of every message is printed
-as it arrives - useful when the customer reports that something in the
+as it arrives - useful when the partner reports that something in the
 payload is not what they expected.
 
 ### The `replay` service: swapping the video

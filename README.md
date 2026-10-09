@@ -2,10 +2,10 @@
 
 Přehrává **MPEG-TS video se STANAG 4609 / MISB ST 0601 metadaty**, rozkládá
 ho na snímky a KLV, slučuje je s PX4 telemetrií pozemní stanice a výsledek
-posílá na API zákazníka.
+posílá na API partnera.
 
 ```
-./video/*.ts ──► replay ──► multicast ──► converter ──┬─► POST na API zákazníka
+./video/*.ts ──► replay ──► multicast ──► converter ──┬─► POST na API partnera
                                               ▲       ├─► POST na naše API
                                               │       └─► .jpg + .json na disk
                             ground-station-sim ┘
@@ -33,8 +33,8 @@ Nejdůležitější:
 
 | Proměnná | K čemu |
 |---|---|
-| `TARGET_API_URL` | kam se posílá zákazníkovi; `{uav}` v cestě se nahradí ID letounu, takže `…/path/to/{uav}/` → `…/path/to/uav1/` |
-| `SNAPSHOT_API_URL` | naše vlastní API, nezávislé na zákaznickém |
+| `TARGET_API_URL` | kam se posílá partnerovi; `{uav}` v cestě se nahradí ID letounu, takže `…/path/to/{uav}/` → `…/path/to/uav1/` |
+| `SNAPSHOT_API_URL` | naše vlastní API, nezávislé na partnerském |
 | `SNAPSHOT_SAVE_DIR_HOST` / `_KEEP` | kam na hostu ukládat snímky a kolik posledních držet (~290 MB/hod) |
 | `SEND_INTERVAL_S` | takt: jedna zpráva za tolik sekund na každý cíl |
 | `GROUND_SIM_UAV` | které UAV z CSV se bere jako zdroj telemetrie |

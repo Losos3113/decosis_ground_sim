@@ -219,7 +219,7 @@ class SnapshotHandler(BaseHTTPRequestHandler):
                             for b in ("vehicle_data", "camera_data", "mission_data")
                             if metadata.get(b))
 
-        # cesta se vypisuje schvalne: zakaznicke API ma UAV v ceste
+        # cesta se vypisuje schvalne: partnerske API ma UAV v ceste
         # (TARGET_API_URL=.../{uav}/), takze az se bude overovat, jestli to
         # chodi tam, kam ma, je to videt rovnou tady
         print(f"[{time.strftime('%H:%M:%S')}] {self.path} #{frame_number}: "

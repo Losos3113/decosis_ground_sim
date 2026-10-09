@@ -76,7 +76,7 @@ def encode_multipart(metadata: dict, jpeg_bytes: bytes = None, frame_number: int
 class Destination:
     """Jeden cil odesilani - vlastni URL, timeout, token, zamek i statistiky.
 
-    Cile jsou zamerne UPLNE oddelene. Jeden z nich pise zakaznik, ne my:
+    Cile jsou zamerne UPLNE oddelene. Jeden z nich pise partner, ne my:
     muze byt pomaly, viset az do timeoutu nebo vracet nesmysly, a nic z toho
     nesmi zpomalit nas vlastni kanal ani dekoder. Proto ma kazdy cil svuj
     in-flight zamek (pomaly cil zahazuje snimky jen sobe), vlastni pocitadla

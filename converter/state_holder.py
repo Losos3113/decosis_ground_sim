@@ -915,7 +915,7 @@ class VideoFrameDecoder:
 def resolve_uav_in_url(url: str, uav_id: str, label: str) -> str:
     """Dosadi ID letounu do URL misto zastupneho `{uav}`.
 
-    Zakaznik chce mit UAV v ceste, napr.
+    Partner chce mit UAV v ceste, napr.
 
         TARGET_API_URL=http://10.0.0.5/path/to/{uav}/   ->  /path/to/uav1/
 
@@ -941,11 +941,11 @@ def main():
     parser.add_argument("--api-timeout-ms", type=int, default=2000)
     parser.add_argument("--api-token", default=None,
                         help="volitelny Bearer token do hlavicky Authorization")
-    # Druhy cil. Pise ho ZAKAZNIK, ne my - proto vlastni jmeno v konfiguraci
+    # Druhy cil. Pise ho PARTNER, ne my - proto vlastni jmeno v konfiguraci
     # i v logu: az bude neco padat, musi byt na prvni pohled videt, ci strana
     # je nedostupna. Prazdna URL = cil se nepouzije.
     parser.add_argument("--target-api-url", default=None, metavar="URL",
-                        help="druhy REST endpoint (zakaznicky); bez nej se posila jen na --api-url")
+                        help="druhy REST endpoint (partnersky); bez nej se posila jen na --api-url")
     parser.add_argument("--target-api-timeout-ms", type=int, default=2000)
     parser.add_argument("--target-api-token", default=None)
     parser.add_argument("--save-dir", default=None, metavar="DIR",
@@ -1028,13 +1028,18 @@ def main():
             auth_token=args.target_api_token))
     snapshot_store = None
     if args.save_dir:
+        # Snimky jdou do podslozky podle letounu: <save-dir>/<uav>/. Jedna
+        # instance obsluhuje jeden stream, takze bez toho deleni by si dve
+        # instance prepisovaly soubory stejnych jmen - a hlavne by pozemni
+        # stanice nemela jak poznat, cí snimek servíruje na /video/<uav>.
+        save_dir = os.path.join(args.save_dir, uav_id) if uav_id else args.save_dir
         try:
-            snapshot_store = SnapshotStore(args.save_dir, keep=args.save_keep)
+            snapshot_store = SnapshotStore(save_dir, keep=args.save_keep)
         except OSError as error:
             # Nepristupna slozka (typicky bind mount vyrobeny Dockerem jako
             # root) nesmi shodit prevod - disk je doplnek k odesilani, ne
             # podminka. Hlasi se hlasite a jede se dal bez ukladani.
-            print(f"[MAIN] WARNING: do {args.save_dir} nelze zapisovat ({error}) - "
+            print(f"[MAIN] WARNING: do {save_dir} nelze zapisovat ({error}) - "
                  f"bezi se BEZ ukladani na disk, odesilani to neovlivni",
                  file=sys.stderr)
 
@@ -1044,7 +1049,7 @@ def main():
              f"(timeout {destination.timeout_s * 1000:.0f} ms)")
     print(f"[MAIN] schema {SCHEMA_VERSION}, pevne 1 zprava za {args.interval_s:g} s "
          f"na KAZDY cil - snimek, jinak heartbeat"
-         + (f"; na disk {args.save_dir}" if args.save_dir else "; bez ukladani na disk"))
+         + (f"; na disk {save_dir}" if snapshot_store else "; bez ukladani na disk"))
 
     ground_link = None
     if args.ground_sim_url:

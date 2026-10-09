@@ -36,7 +36,7 @@ fi
 
 # Prazdne = state_holder.py si fps zmeri sam z PTS streamu (FrameRateDetector).
 # Vyplnit jen pri potrebe rucne prepsat namerenou hodnotu.
-# Druhy cil - zakaznicke API. Prazdne = posila se jen na SNAPSHOT_API_URL.
+# Druhy cil - partnerske API. Prazdne = posila se jen na SNAPSHOT_API_URL.
 TARGET_API_URL="${TARGET_API_URL:-}"
 TARGET_ARGS=()
 if [ -n "$TARGET_API_URL" ]; then
@@ -76,7 +76,7 @@ python3 /app/retransmitter.py \
     --dst "$RETRANSMIT_DST" --dst-port "$RETRANSMIT_DST_PORT" &
 RETRANSMITTER_PID=$!
 
-echo "[entrypoint] state_holder: $SRC:$SRC_PORT -> POST $SNAPSHOT_API_URL${TARGET_API_URL:+ + zakaznicke $TARGET_API_URL}${SNAPSHOT_SAVE_DIR:+ + disk $SNAPSHOT_SAVE_DIR} (fps=${INPUT_FPS:-auto})${IFACE:+ (iface $IFACE)}${GROUND_SIM_URL:+ (ground sim $GROUND_SIM_URL, ${GROUND_SIM_UAV:-uav1})}"
+echo "[entrypoint] state_holder: $SRC:$SRC_PORT -> POST $SNAPSHOT_API_URL${TARGET_API_URL:+ + partnerske $TARGET_API_URL}${SNAPSHOT_SAVE_DIR:+ + disk $SNAPSHOT_SAVE_DIR} (fps=${INPUT_FPS:-auto})${IFACE:+ (iface $IFACE)}${GROUND_SIM_URL:+ (ground sim $GROUND_SIM_URL, ${GROUND_SIM_UAV:-uav1})}"
 python3 /app/state_holder.py \
     --src "$SRC" --src-port "$SRC_PORT" "${IFACE_ARGS[@]}" \
     --api-url "$SNAPSHOT_API_URL" \

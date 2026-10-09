@@ -2,13 +2,13 @@
 #
 # Prehraje .ts video ze slozky ./video, rozlozi ho na snimky a KLV metadata,
 # slouci je s PX4 telemetrii z pozemni stanice a vysledek posle na API
-# zakaznika (a ulozi na disk).
+# partnera (a ulozi na disk).
 #
 #   docker compose up -d                   cela sestava
 #   docker compose --profile mock up -d    + nahradni prijemci misto skutecnych API
 #
 # Nahradni prijemci jsou za profilem schvalne - v ostrem provozu snimky
-# chodi na skutecne API zakaznika a mock by jen bral port.
+# chodi na skutecne API partnera a mock by jen bral port.
 
 services:
 
@@ -22,8 +22,12 @@ services:
     ipc: "host"
     environment:
       - SIMULATOR_PORT=${SIMULATOR_PORT}
+      - SNAPSHOT_DIR=${SNAPSHOT_SAVE_DIR:-/data/snapshots}
     volumes:
       - ./sim_data:/app/sim_data
+      # tataz slozka, do ktere pise converter - odtud se bere obraz pro
+      # /video/<uav>. Jen pro cteni: zapisuje do ni vyhradne converter.
+      - ${SNAPSHOT_SAVE_DIR_HOST:-./snapshots}:${SNAPSHOT_SAVE_DIR:-/data/snapshots}:ro
     restart: unless-stopped
 
   # --- parser videa: TS + KLV -> snimek a metadata -> API a disk -----------
@@ -58,18 +62,13 @@ services:
       - RECV_BUFFER_MB=${RECV_BUFFER_MB}
       - PTS_HORIZON_S=${PTS_HORIZON_S}
     volumes:
-      # snimky musi prezit restart kontejneru; slozka na hostu musi byt
-      # zapisovatelna pro uid 1000 - kontejner bezi pod grounduser
       - ${SNAPSHOT_SAVE_DIR_HOST:-./snapshots}:${SNAPSHOT_SAVE_DIR:-/data/snapshots}
     restart: unless-stopped
 
   # --- prehravac TS videi: hlavni funkce simulatoru ------------------------
-  # Prehrava .ts ze slozky ./video dokola do multicastu, odkud si ho bere
-  # converter. Vymena videa = stop, nahradit soubor, start.
-  #
-  # NENI za profilem: tohle DECOSIS dela. Za profilem to bylo, dokud byl
-  # projekt jen "parser cizího streamu" - tam by se vlastni vysilani pralo
-  # se skutecnym vysilacem z letounu.
+  # Prehraje .ts ze slozky ./video dokola. Vymena videa = stop, nahradit
+  # soubor, start. Ve slozce ma byt jedno video; kdyz jich je vic, prehraje
+  # prvni podle abecedy a rekne to v logu.
   replay:
     image: python:3.12-slim
     network_mode: host
@@ -81,8 +80,7 @@ services:
       --dir /data/video
       --dst ${SRC:-239.1.1.1} --port ${SRC_PORT:-5000}
       --iface ${IFACE:-0.0.0.0}
-      --rate ${REPLAY_RATE:-6M}
-      --ttl ${REPLAY_TTL:-8}
+      --rate ${REPLAY_RATE:-6M} --ttl ${REPLAY_TTL:-8}
       --loop
     restart: unless-stopped
 
