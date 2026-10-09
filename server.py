@@ -7,7 +7,7 @@ import glob
 from typing import Dict, Any
 
 app = FastAPI(
-    title="ROS2 / PX4 Multi-UAV Ground Station Simulator",
+    title="DECOSIS - PX4 Multi-UAV Ground Station Simulator",
     description="Simulátor pro více dronů. Data se cyklují nezávisle z CSV souborů ve složce sim_data.",
     version="2.1.0"
 )

@@ -1,28 +1,19 @@
-FROM ros:humble-ros-base
-
-# 1. Instalace systémových závislostí pro OpenCV, Python a nástroje pro entrypoint
-RUN apt-get update && apt-get install -y \
-    python3-pip \
-    python3-opencv \
-    ros-humble-cv-bridge \
-    dos2unix \
-    && rm -rf /var/lib/apt/lists/*
-
-# 2. Instalace balíčků s explicitním uzamčením NumPy na verzi 1.x
-RUN pip3 install --no-cache-dir fastapi uvicorn pandas "numpy<2.0.0" --force-reinstall
+# Pozemni stanice: telemetrie PX4 z CSV pres REST.
+#
+# Drive to byl obraz ros:humble-ros-base, protoze vedle telemetrie bezel i
+# ROS2 streamer, co posilal MP4 jako komprimovane snimky. Ten odpadl - video
+# ted chodi jako MPEG-TS s KLV a zpracovava ho converter/ - takze z obrazu
+# zmizel cely ROS2, OpenCV i cv_bridge (a s nimi ~2 GB) a staci cisty Python.
+FROM python:3.12-slim
 
 WORKDIR /app
 
-# 3. Zkopírování zdrojových kódů a skriptů
+# numpy uz neni potreba drzet na 1.x; ten zamek byl kvuli cv_bridge, ktery
+# tady uz neni
+RUN pip install --no-cache-dir fastapi uvicorn pandas
+
 COPY server.py .
-COPY video_streamer.py .
-COPY entrypoint.sh .
 
-# Sychr pro případ, že by skript měl Windows konce řádků (\r\n) a nastavení spustitelnosti
-RUN dos2unix entrypoint.sh && chmod +x entrypoint.sh
-
-# Otevření portu pro FastAPI
 EXPOSE 8001
 
-# Spuštění přes náš startovací skript
-CMD ["./entrypoint.sh"]
+CMD ["python3", "server.py"]

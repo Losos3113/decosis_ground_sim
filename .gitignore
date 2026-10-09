@@ -1,0 +1,18 @@
+# vygenerovana data - snimky, ktere nasbira converter a nahradni prijemci
+snapshots/
+received/
+
+# testovaci videa (desitky MB, do gitu nepatri)
+video/*
+!video/.gitkeep
+*.ts
+# vyjimka: maly synteticky vzorek (5 MB) - kryje variantu KLV ve stream_type
+# 0x15, kterou skutecne nahravky nepouzivaji, takze se hodi mit ho po ruce.
+# Musi byt az ZA vzorem *.ts, jinak by ho obecnejsi pravidlo prebilo.
+!sample.ts
+
+# konfigurace konkretniho nasazeni; sablona je .env.example
+.env
+*.env
+
+__pycache__/

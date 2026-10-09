@@ -1,121 +1,64 @@
-# UAV Ground Station Simulator
+# DECOSIS simulátor
 
-Tento projekt slouží jako kontejnerizovaný simulátor pro pozemní stanici (Ground Station). Simuluje provoz dvou bezpilotních letounů (**uav1** a **uav2**) a poskytuje jak telemetrická data přes FastAPI (REST API + WebSockets), tak video stream v nekonečné smyčce přes ROS2.
-
-## Architektura
-Celý simulátor běží v **jednom Docker kontejneru** na síťovém režimu `host`, což zajišťuje minimální režii a okamžitou viditelnost ROS2 topiců v lokální síti.
-- **FastAPI Server:** Vyčítá telemetrii ze složky `sim_data/*.csv` a posílá ji dál. Respektuje konfiguraci portu ze souboru `.env`.
-- **ROS2 Video Streamer:** Bere videa ze složky `sim_video/*.mp4` a publikuje je jako komprimované snímky frekvencí 1 FPS (vhodné pro simulaci průzkumných dronů).
-
----
-
-## 1. Spuštění simulátoru (na serveru / hostiteli)
-
-### Prerekvizity
-Ujisti se, že máš v kořenovém adresáři vytvořenou strukturu pro data:
-```text
-ground_station_sim/
-├── sim_data/
-│   ├── uav1.csv
-│   └── uav2.csv
-└── sim_video/
-    ├── uav1.mp4
-    └── uav2.mp4
+Přehrává **MPEG-TS video se STANAG 4609 / MISB ST 0601 metadaty**, rozkládá
+ho na snímky a KLV, slučuje je s PX4 telemetrií pozemní stanice a výsledek
+posílá na API zákazníka.
 
 ```
-
-### Konfigurace
-
-V kořenové složce vytvoř soubor `.env` pro dynamické nastavení portu FastAPI serveru:
-
-```env
-SIMULATOR_PORT=8002
-
+./video/*.ts ──► replay ──► multicast ──► converter ──┬─► POST na API zákazníka
+                                              ▲       ├─► POST na naše API
+                                              │       └─► .jpg + .json na disk
+                            ground-station-sim ┘
+                            (PX4 telemetrie z CSV přes REST)
 ```
 
-### Spuštění kontejneru
+Ke každému snímku odejde **jedna multipart zpráva**: část `metadata` (JSON
+schématu `DECOSIS-SNAP-2`) a část `image` (JPEG). Když zrovna není co
+poslat, odejde místo toho heartbeat — příjemce tak podle ticha pozná výpadek.
 
-Sestavení a spuštění simulátoru provedete příkazem:
+## Spuštění
 
 ```bash
-docker compose down
-docker compose build --no-cache
-docker compose up
-
+cp .env.example .env     # a upravit, hlavně TARGET_API_URL
+docker compose up -d
 ```
 
-Po spuštění je API dokumentace dostupná na adrese `http://<IP_SERVERU>:<PORT>/docs`.
+Video, které se má přehrávat, patří do `./video/` jako jediný `.ts`.
+Výměna videa je tedy: zastavit, nahradit soubor, spustit.
 
-### Endpointy
+## Konfigurace
 
-| Endpoint | Co vrací |
+Všechno je v `.env`, v `docker-compose.yml` není pro běžný provoz co měnit.
+Nejdůležitější:
+
+| Proměnná | K čemu |
 |---|---|
-| `GET /api/uavs` | seznam právě simulovaných UAV |
-| `GET /api/{uav}/topics` | názvy topiců, které dané UAV má |
-| `GET /api/{uav}/state` | **poslední známou hodnotu všech topiců najednou** |
-| `GET /api/{uav}/topic/{topic}` | poslední stav jednoho topicu |
-| `GET /api/{uav}/current` | zpráva, která zrovna v tuto sekundu prošla |
+| `TARGET_API_URL` | kam se posílá zákazníkovi; `{uav}` v cestě se nahradí ID letounu, takže `…/path/to/{uav}/` → `…/path/to/uav1/` |
+| `SNAPSHOT_API_URL` | naše vlastní API, nezávislé na zákaznickém |
+| `SNAPSHOT_SAVE_DIR_HOST` / `_KEEP` | kam na hostu ukládat snímky a kolik posledních držet (~290 MB/hod) |
+| `SEND_INTERVAL_S` | takt: jedna zpráva za tolik sekund na každý cíl |
+| `GROUND_SIM_UAV` | které UAV z CSV se bere jako zdroj telemetrie |
+| `SIMULATOR_PORT` | port REST API pozemní stanice |
 
-`/state` je endpoint, který odebírá **Converter** (projekt `Converter`,
-modul `ground_link.py`): telemetrie se tam skládá k jednomu snímku videa,
-takže ji potřebuje pohromadě a ne po jednotlivých dotazech na topic.
-Converter se na něj ptá jednou za sekundu - stejně rychle, jak simulátor
-posouvá CSV, takže častější dotazování nic nepřidá.
+Změna samotného `.env` stačí restartovat (`docker compose up -d`). Zásah do
+`entrypoint.sh` nebo `Dockerfile` vyžaduje `--build`, protože se kopírují do
+obrazu.
 
----
+## Části
 
-## 2. Zachytávání a zobrazení videa (na klientském PC)
+| Složka | Co dělá |
+|---|---|
+| `converter/` | parser TS + KLV, slučování metadat, odesílání; vlastní dokumentace v `converter/DOCUMENTATION.md` |
+| `server.py`, `sim_data/` | pozemní stanice: PX4 telemetrie z CSV přes REST (`/api/<uav>/state`) |
+| `testing/` | pomocné nástroje — `replay.py` (přehrávač), `analyze_ts.py` (rozbor TS), `network_preflight.py` (kontrola multicastu) |
+| `video/`, `snapshots/`, `received/` | vstupní video a vygenerovaná data — v gitu ignorované |
 
-Pro testování a zobrazení streamu na vašem počítači využijte oficiální ROS2 desktopový kontejner. Jelikož se spouští grafické rozhraní (`rqt_image_view`), je nutné povolit přístup k X-serveru.
+## Co odpadlo
 
-### Krok 1: Povolení grafiky na hostitelském PC
+Dřív simulátor publikoval **MP4 jako ROS2 snímky** (`video_streamer.py`,
+`sim_video/`, klient `ros2_client`) a telemetrii řešil zvlášť, protože
+nebyla k dispozici žádná TS videa. S parserem TS je tahle větev zbytečná a
+byla odstraněna — spolu s ní zmizel z obrazu pozemní stanice celý ROS2,
+OpenCV a cv_bridge, takže build spadl z ~2,5 GB na ~400 MB.
 
-Před spuštěním kontejneru povolte v terminálu svého počítače lokální připojení k vašemu monitoru:
-
-```bash
-xhost +local:docker
-
-```
-
-### Krok 2: Spuštění klientského kontejneru
-
-Spusťte kontejner s namontovaným grafickým socketem a sdílenou hostitelskou sítí:
-
-```bash
-docker run -it \
-  --name ros2_client \
-  --network host \
-  --env="DISPLAY" \
-  --volume="/tmp/.X11-unix:/tmp/.X11-unix:rw" \
-  osrf/ros:humble-desktop
-
-```
-
-### Krok 3: Instalace pluginu a spuštění rqt (uvnitř kontejneru)
-
-Jakmile jste uvnitř spuštěného kontejneru, doinstalujte balíček pro dekompresi obrazu, načtěte ROS prostředí a ověřte přítomnost streamu:
-
-```bash
-# 1. Aktualizace a instalace pluginu pro komprimované obrázky
-apt-get update && apt-get install -y ros-humble-image-transport-plugins
-
-# 2. Načtení ROS2 prostředí
-source /opt/ros/humble/setup.bash
-
-# 3. Kontrola, zda vidíte topicy ze simulátoru
-ros2 topic list
-# Ve výpisu musíte vidět:
-# /uav1/camera/image_raw/compressed
-# /uav2/camera/image_raw/compressed
-
-# 4. Spuštění grafického prohlížeče snímků
-ros2 run rqt_image_view rqt_image_view
-
-```
-
-**V okně `rqt_image_view`:**
-V rozevíracím seznamu vlevo nahoře vyberte požadovaný topic (např. `/uav1/camera/image_raw/compressed`). Průzkumný stream běží v plynulých vteřinových intervalech (1 FPS).
-
-```
-
-
+Historie je v gitu, kdyby se k tomu někdy bylo potřeba vrátit.

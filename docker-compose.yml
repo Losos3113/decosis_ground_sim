@@ -1,13 +1,112 @@
+# DECOSIS simulator - prehravac TS videi a slucovac metadat.
+#
+# Prehraje .ts video ze slozky ./video, rozlozi ho na snimky a KLV metadata,
+# slouci je s PX4 telemetrii z pozemni stanice a vysledek posle na API
+# zakaznika (a ulozi na disk).
+#
+#   docker compose up -d                   cela sestava
+#   docker compose --profile mock up -d    + nahradni prijemci misto skutecnych API
+#
+# Nahradni prijemci jsou za profilem schvalne - v ostrem provozu snimky
+# chodi na skutecne API zakaznika a mock by jen bral port.
+
 services:
+
+  # --- pozemni stanice: telemetrie PX4 pres REST + video pres ROS2 ----------
   ground-station-sim:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: ground_station_simulator
     network_mode: "host"
+    ipc: "host"
     environment:
-      - SIMULATOR_PORT=${SIMULATOR_PORT}  # Docker přečte z .env a pošle dál
+      - SIMULATOR_PORT=${SIMULATOR_PORT}
     volumes:
       - ./sim_data:/app/sim_data
-      - ./sim_video:/app/sim_video
+    restart: unless-stopped
+
+  # --- parser videa: TS + KLV -> snimek a metadata -> API a disk -----------
+  converter:
+    build:
+      context: ./converter
+    container_name: decosis_converter
+    network_mode: host
+    environment:
+      - PYTHONUNBUFFERED=1
+      - SRC=${SRC}
+      - SRC_PORT=${SRC_PORT}
+      - IFACE=${IFACE}
+      - RETRANSMIT_DST=${RETRANSMIT_DST}
+      - RETRANSMIT_DST_PORT=${RETRANSMIT_DST_PORT}
+      - SNAPSHOT_API_URL=${SNAPSHOT_API_URL}
+      - SNAPSHOT_API_TIMEOUT_MS=${SNAPSHOT_API_TIMEOUT_MS}
+      - SNAPSHOT_API_TOKEN=${SNAPSHOT_API_TOKEN}
+      - TARGET_API_URL=${TARGET_API_URL}
+      - TARGET_API_TIMEOUT_MS=${TARGET_API_TIMEOUT_MS}
+      - TARGET_API_TOKEN=${TARGET_API_TOKEN}
+      - SNAPSHOT_SAVE_DIR=${SNAPSHOT_SAVE_DIR}
+      - SNAPSHOT_SAVE_KEEP=${SNAPSHOT_SAVE_KEEP}
+      - GROUND_SIM_URL=${GROUND_SIM_URL}
+      - GROUND_SIM_UAV=${GROUND_SIM_UAV}
+      - GROUND_SIM_POLL_S=${GROUND_SIM_POLL_S}
+      - GROUND_SIM_TIMEOUT_MS=${GROUND_SIM_TIMEOUT_MS}
+      - GROUND_SIM_MAX_AGE_S=${GROUND_SIM_MAX_AGE_S}
+      - INPUT_FPS=${INPUT_FPS}
+      - JPEG_QUALITY=${JPEG_QUALITY}
+      - SEND_INTERVAL_S=${SEND_INTERVAL_S}
+      - RECV_BUFFER_MB=${RECV_BUFFER_MB}
+      - PTS_HORIZON_S=${PTS_HORIZON_S}
+    volumes:
+      # snimky musi prezit restart kontejneru; slozka na hostu musi byt
+      # zapisovatelna pro uid 1000 - kontejner bezi pod grounduser
+      - ${SNAPSHOT_SAVE_DIR_HOST:-./snapshots}:${SNAPSHOT_SAVE_DIR:-/data/snapshots}
+    restart: unless-stopped
+
+  # --- prehravac TS videi: hlavni funkce simulatoru ------------------------
+  # Prehrava .ts ze slozky ./video dokola do multicastu, odkud si ho bere
+  # converter. Vymena videa = stop, nahradit soubor, start.
+  #
+  # NENI za profilem: tohle DECOSIS dela. Za profilem to bylo, dokud byl
+  # projekt jen "parser cizího streamu" - tam by se vlastni vysilani pralo
+  # se skutecnym vysilacem z letounu.
+  replay:
+    image: python:3.12-slim
+    network_mode: host
+    volumes:
+      - ./testing/replay.py:/app/replay.py:ro
+      - ${REPLAY_VIDEO_DIR:-./video}:/data/video:ro
+    command: >
+      python3 -u /app/replay.py
+      --dir /data/video
+      --dst ${SRC:-239.1.1.1} --port ${SRC_PORT:-5000}
+      --iface ${IFACE:-0.0.0.0}
+      --rate ${REPLAY_RATE:-6M}
+      --ttl ${REPLAY_TTL:-8}
+      --loop
+    restart: unless-stopped
+
+  # --- nahradni prijemci: zivy nahled na http://localhost:<port>/ ----------
+  mock-api:
+    profiles: ["mock"]
+    image: python:3.12-slim
+    network_mode: host
+    volumes:
+      - ./testing/mock_api.py:/app/mock_api.py:ro
+      - ${MOCK_API_SAVE_DIR:-./received}:/data/received
+    command: >
+      python3 -u /app/mock_api.py --port ${MOCK_API_PORT:-9000}
+      --save-dir /data/received/primary --keep ${MOCK_KEEP:-20}
+    restart: unless-stopped
+
+  mock-target-api:
+    profiles: ["mock"]
+    image: python:3.12-slim
+    network_mode: host
+    volumes:
+      - ./testing/mock_api.py:/app/mock_api.py:ro
+      - ${MOCK_TARGET_SAVE_DIR:-./received}:/data/received
+    command: >
+      python3 -u /app/mock_api.py --port ${MOCK_TARGET_API_PORT:-9100}
+      --save-dir /data/received/target --keep ${MOCK_KEEP:-20}
     restart: unless-stopped
