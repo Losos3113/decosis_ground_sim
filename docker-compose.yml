@@ -89,6 +89,8 @@ services:
     profiles: ["mock"]
     image: python:3.12-slim
     network_mode: host
+    # jinak by soubory ve ./received vlastnil root a nesly smazat bez sudo
+    user: "1000:1000"
     volumes:
       - ./testing/mock_api.py:/app/mock_api.py:ro
       - ${MOCK_API_SAVE_DIR:-./received}:/data/received
@@ -101,6 +103,7 @@ services:
     profiles: ["mock"]
     image: python:3.12-slim
     network_mode: host
+    user: "1000:1000"
     volumes:
       - ./testing/mock_api.py:/app/mock_api.py:ro
       - ${MOCK_TARGET_SAVE_DIR:-./received}:/data/received
